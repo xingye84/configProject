@@ -3,22 +3,22 @@
     "plugins": [
         {
             "name": "腾讯音乐",
-            "url": "http://51.195.241.253:8080/https://raw.githubusercontent.com/ThomasBy2025/musicfree/refs/heads/main/plugins/tx.js",
+            "url": "https://cdn.gh-proxy.com/https://raw.githubusercontent.com/xingye84/configProject/refs/heads/main/music/free/thomas/tx.js",
             "version": "2025.09.13"
         },
         {
             "name": "网易音乐",
-            "url": "http://51.195.241.253:8080/https://raw.githubusercontent.com/ThomasBy2025/musicfree/refs/heads/main/plugins/wy.js",
+            "url": "https://cdn.gh-proxy.com/https://raw.githubusercontent.com/xingye84/configProject/refs/heads/main/music/free/thomas/wy.js",
             "version": "2025.09.14"
         },
         {
             "name": "酷狗音乐",
-            "url": "http://51.195.241.253:8080/https://raw.githubusercontent.com/ThomasBy2025/musicfree/refs/heads/main/plugins/kg.js",
+            "url": "https://cdn.gh-proxy.com/https://raw.githubusercontent.com/xingye84/configProject/refs/heads/main/music/free/thomas/kg.js",
             "version": "2025.09.14"
         },
         {
             "name": "酷我音乐",
-            "url": "http://51.195.241.253:8080/https://raw.githubusercontent.com/ThomasBy2025/musicfree/refs/heads/main/plugins/kw.js",
+            "url": "https://cdn.gh-proxy.com/https://raw.githubusercontent.com/xingye84/configProject/refs/heads/main/music/free/thomas/kw.js",
             "version": "2025.09.16"
         },
         {
@@ -30,11 +30,6 @@
             "name": "汽水音乐",
             "url": "https://gitee.com/hongmengv5/musicfree/raw/master/qishui.js",
             "version": "0.1.5"
-        },
-        {
-            "name": "GitCode",
-            "url": "http://51.195.241.253:8080/https://raw.githubusercontent.com/ThomasBy2025/musicfree/refs/heads/main/plugins/git.js",
-            "version": "2025.08.26"
         }
     ]
 }
