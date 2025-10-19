@@ -797,148 +797,216 @@ async function search(query, page, type) {
 
 
 
-// 获取链接
-async function getMediaSource(musicItem, quality) {
-    // 获取歌曲支持的最大音质
-    if (!musicItem.qualities[quality]) {
-        return false
-    }
-
+// 官方源获取
+async function getFromOfficial(musicItem, quality) {
     let {
         uin,
         isLogin
     } = getLogin();
-    let url, rawLrc, artwork;
-    try {
-        if (!isLogin && musicItem.type == "1") {
-            throw new Error('is vip music');
+    
+    if (!isLogin && musicItem.type == "1") {
+        throw new Error('is vip music');
+    }
+    
+    let guid = (Math.random() * 10000000).toFixed(0);
+    let songId = musicItem.songmid;
+    let strMediaMid = musicItem.strMediaMid;
+    let id = "";
+    let typeObj = qualityMap[quality];
+    let filename = `${typeObj.s}${id}${strMediaMid}${typeObj.e}`;
+    
+    let __ = await ajax({
+        module: "vkey.GetVkeyServer",
+        method: "CgiGetVkey",
+        param: {
+            "guid": String(guid),
+            "platform": "20",
+            "filename": [filename],
+            "songmid": [songId],
+            "songtype": [0],
+            "uin": uin || "",
+            "loginflag": 1
         }
-        let guid = (Math.random() * 10000000).toFixed(0);
-        let songId = musicItem.songmid;
-        let strMediaMid = musicItem.strMediaMid; // songId | vs[4] | vs[3]
-        let id = ""; // songId
-        let typeObj = qualityMap[quality];
-        let filename = `${typeObj.s}${id}${strMediaMid}${typeObj.e}`;
-        let __ = await ajax({
-            module: "vkey.GetVkeyServer", // music.vkey.GetVkey
-            method: "CgiGetVkey", // GetUrl
-            param: {
-                "guid": String(guid),
-                "platform": "20",
-                "filename": [filename],
-                "songmid": [songId],
-                "songtype": [0],
-                "uin": uin || "",
-                "loginflag": 1
-            }
-        });
-        url = __.midurlinfo[0].purl;
-        if (url && url != "") {
-            return {
-                url: __.sip[0] + url
-            }
-        } else {
-            throw new Error('no get purl');
-        }
-    } catch (isVipMusic) { // 没有登录 / 登录过期 / 没有会员
-        return await getMediaProxys(musicItem, quality);
+    });
+    
+    let url = __.midurlinfo[0].purl;
+    if (url && url != "") {
+        return {
+            url: __.sip[0] + url
+        };
+    } else {
+        throw new Error('no get purl');
     }
 }
 
-
-
-// 从解析获取链接 (lx-music-api-server)
-// 基于 https://github.com/lxmusics/lx-music-api-server 实现的五个公益音源
-async function getMediaProxys(musicItem, quality, err_i = 0) {
+// ikun 源获取（基于 ikun-music-source2.js 实现）
+async function getFromIkun(musicItem, quality) {
     let lxQuality = {
         low: "128k",
-        high: "320k",
-        lossless: "flac",
+        standard: "320k",
+        high: "flac",
         super: "flac24bit"
-    } [quality];
-    let url, rawLrc, artwork, res;
-    try {
-        switch (String(err_i)) {
-            case "0": // By: ikun0014
-                // 反馈群组: https://t.me/ikunshare_qun
-                // MusicFree: https://api.ikunshare.com/subscription_卡密.json
-                // LX Music: https://api.ikunshare.com/script?key=卡密
-                let { // 获取密匙
-                    ikun_key
-                } = env && env.getUserVariables();
-                res = (
-                    await axios_1.default.get(`http://103.217.184.26:9000`, {
-                        params: {
-                            source: "tx",
-                            songId: musicItem.songmid,
-                            quality: lxQuality
-                        },
-                        headers: {
-                            "Content-Type": "application/json",
-                            "X-Request-Key": "KAWANG_63b29688-GE5LEV8TPCJO4U6N",
-                            "User-Agent": "lx-music-mobile/2.0.0"
-                        }
-                    })
-                ).data;
-                url = res.url;
-                if (url) return {
-                    url
+    }[quality];
+    
+    let res = (
+        await axios_1.default.get(`http://103.217.184.26:9000/url`, {
+            params: {
+                source: "tx",
+                songId: musicItem.songmid,
+                quality: lxQuality
+            },
+            headers: {
+                "Content-Type": "application/json",
+                "User-Agent": "lx-music-mobile/2.0.0",
+                "X-Request-Key": "KAWANG_63b29688-GE5LEV8TPCJO4U6N"
+            }
+        })
+    ).data;
+    
+    // 检查返回的错误码
+    if (!res || isNaN(Number(res.code))) {
+        throw new Error('ikun source: unknown error');
+    }
+    
+    switch (res.code) {
+        case 200:
+            if (res.url) {
+                return {
+                    url: res.url
                 };
-                break;
-            case "1": // By: 微信公众号@元力菌
-                // 反馈群组：null
-                // MusicFree: https://13413.kstore.vip/yuanli/元力音乐.json
-                // LX Music: null
-                res = (
-                    await axios_1.default.get(`https://music.haitangw.cc/music/qq_song_kw.php`, {
-                        params: {
-                            level: {
-                                "low": "standard",
-                                "standard": "exhigh",
-                                "high": "lossless",
-                                "super": "hires"
-                            } [quality],
-                            type: "json",
-                            id: musicItem.songmid
-                        }
-                    })
-                ).data;
-                url = res.data.url;
-                if (url) return {
-                    rawLrc: res.data.lrc,
-                    url
-                }
-                break;
-            case "4": // By: Huibq
-                // 反馈群组：https://t.me/+Xh7BWUUPqUZlMDU1
-                // MusicFree: https://fastly.jsdelivr.net/gh/Huibq/keep-alive/Music_Free/myPlugins.json
-                // LX Music: https://fastly.jsdelivr.net/gh/Huibq/keep-alive/render_api.js
-                res = (
-                    await axios_1.default.get(`https://lxmusicapi.onrender.com/url/tx/${musicItem.songmid}/${ quality=="low"?"128k":"320k" }`, {
-                        headers: {
-                            "X-Request-Key": "share-v2",
-                            "User-Agent": "lx-music-mobile/2.0.0"
-                        }
-                    })
-                ).data;
-                url = res.url;
-                if (url) return {
-                    url,
-                }
-                break;
-        }
-    } catch (err) {}
-    if (err_i < 5) {
-        return await getMediaProxys(musicItem, quality, err_i + 1);
-    } else {
-        return await KUWO(musicItem, quality);
+            }
+            throw new Error('ikun source: no url in response');
+        case 403:
+            throw new Error('ikun source: Key失效/鉴权失败');
+        case 500:
+            throw new Error(`ikun source: 获取URL失败, ${res.message || '未知错误'}`);
+        case 429:
+            throw new Error('ikun source: 请求过速');
+        default:
+            throw new Error(`ikun source: ${res.message || '未知错误'}`);
     }
 }
 
+// 元力菌源获取
+async function getFromYuanli(musicItem, quality) {
+    // 元力菌源只支持 standard 和 exhigh,lossless
+    let yuanLiQuality = {
+        low: "standard",
+        standard: "exhigh",
+        high: "lossless"
+    }[quality];
+    
+    // 不支持的音质直接报错
+    if (!yuanLiQuality) {
+        throw new Error(`yuanLiQuality source: unsupported quality ${quality}`);
+    }
+    let res = (
+        await axios_1.default.get(`https://music.haitangw.cc/music/qq_song_kw.php`, {
+            params: {
+                level: yuanLiQuality,
+                type: "json",
+                id: musicItem.songmid
+            }
+        })
+    ).data;
+        
+        // 检查返回值是否有效（不是 "None" 字符串）
+        if (res && res.data && res.data.url && res.data.url !== "None" && res.data.url !== "none") {
+            return {
+                rawLrc: res.data.lrc,
+                url: res.data.url
+            };
+        }
+        
+        // 检查错误信息
+        const errorMsg = res?.data?.error || res?.msg || 'unknown error';
+        throw new Error('yuanli source failed: ' + errorMsg);
+}
 
+// Huibq 源获取
+async function getFromHuibq(musicItem, quality) {
+    // Huibq 音源只支持 128k 和 320k
+    let huibqQuality = {
+        low: "128k",
+        standard: "320k"
+    }[quality];
+    
+    // 不支持的音质直接报错
+    if (!huibqQuality) {
+        throw new Error(`huibq source: unsupported quality ${quality}`);
+    }
+    
+    let res = (
+        await axios_1.default.get(`https://lxmusicapi.onrender.com/url/tx/${musicItem.songmid}/${huibqQuality}`, {
+            headers: {
+                "X-Request-Key": "share-v2",
+                "User-Agent": "lx-music-mobile/2.0.0"
+            }
+        })
+    ).data;
+    
+    if (res.url) {
+        return {
+            url: res.url
+        };
+    } else {
+        throw new Error('huibq source failed');
+    }
+}
 
-// 获取灰色歌曲
-async function KUWO(musicItem, quality) {
+// 新澜音源获取（基于 lx-music-source-free-1760842310465.js 实现）
+async function getFromXinlan(musicItem, quality) {
+    // 新澜音源只支持 128k 和 320k
+    let lxQuality = {
+        low: "128k",
+        standard: "320k"
+    }[quality];
+    
+    // 不支持的音质直接报错
+    if (!lxQuality) {
+        throw new Error(`xinlan source: unsupported quality ${quality}`);
+    }
+    
+    let res = (
+        await axios_1.default.get(`https://source.shiqianjiang.cn/api/music/url`, {
+            params: {
+                source: "tx",
+                songId: musicItem.songmid,
+                quality: lxQuality
+            },
+            headers: {
+                "Content-Type": "application/json",
+                "User-Agent": "lx-music-mobile/2.0.0"
+            }
+        })
+    ).data;
+    
+    // 检查返回的错误码
+    if (!res || isNaN(Number(res.code))) {
+        throw new Error('xinlan source: unknown error');
+    }
+    
+    switch (res.code) {
+        case 200:
+            if (res.url) {
+                return {
+                    url: res.url
+                };
+            }
+            throw new Error('xinlan source: no url in response');
+        case 403:
+            throw new Error('xinlan source: 权限不足或Key失效');
+        case 429:
+            throw new Error('xinlan source: 请求过于频繁');
+        case 500:
+            throw new Error(`xinlan source: 获取URL失败, ${res.message || '未知错误'}`);
+        default:
+            throw new Error(`xinlan source: ${res.message || '未知错误'}`);
+    }
+}
+
+// 酷我源获取（原 KUWO 函数）
+async function getFromKuwo(musicItem, quality) {
     let {
         source
     } = env && env.getUserVariables();
@@ -971,7 +1039,6 @@ async function KUWO(musicItem, quality) {
             break;
         };
     }
-    // console.log(songId);
 
     // 获取
     let res = (await axios_1.default.get("http://nmobi.kuwo.cn/mobi.s", {
@@ -986,17 +1053,118 @@ async function KUWO(musicItem, quality) {
                 "standard": "320kmp3",
                 "high": "2000kflac",
                 "super": "20000kflac",
-            } [quality],
+            }[quality],
         },
         headers: {
             "User-Agent": "okhttp/4.10.0"
         }
     })).data;
-    // console.log(res);
+    
     return {
         url: res.data.url.split("?")[0],
         quality
+    };
+}
+
+// 洛雪音乐源获取（基于 lx-music-source V3.0.js 实现）
+async function getFromLxMusic(musicItem, quality) {
+    const API_URL = "https://88.lxmusic.xn--fiqs8s";
+    const API_KEY = "lxmusic";
+    
+    // 质量映射
+    let lxQuality = {
+        low: "128k",
+        standard: "320k",
+        high: "flac",
+        super: "flac24bit"
+    }[quality];
+    
+    if (!lxQuality) {
+        throw new Error(`lxmusic source: unsupported quality ${quality}`);
     }
+    
+    const songId = musicItem.songmid;
+    const source = "tx"; // 腾讯音源
+    
+    let res = (
+        await axios_1.default.get(`${API_URL}/lxmusicv3/url/${source}/${songId}/${lxQuality}`, {
+            headers: {
+                'Content-Type': 'application/json',
+                'User-Agent': 'lx-music-mobile/2.0.0',
+                'X-Request-Key': API_KEY,
+            }
+        })
+    ).data;
+    
+    if (!res || isNaN(Number(res.code))) {
+        throw new Error('lxmusic source: unknown error');
+    }
+    
+    switch (res.code) {
+        case 0:
+            if (res.data) {
+                return {
+                    url: res.data
+                };
+            }
+            throw new Error('lxmusic source: no url in response');
+        case 1:
+            throw new Error('lxmusic source: IP被封禁');
+        case 2:
+            throw new Error(`lxmusic source: 获取音乐链接失败, ${res.msg || '未知错误'}`);
+        case 4:
+            throw new Error('lxmusic source: 远程服务器错误');
+        case 5:
+            throw new Error('lxmusic source: 请求过于频繁');
+        case 6:
+            throw new Error('lxmusic source: 请求参数错误');
+        default:
+            throw new Error(`lxmusic source: ${res.msg || '未知错误'}`);
+    }
+}
+
+// 音源列表（会动态调整顺序）
+let sources = [
+    getFromOfficial,
+    getFromIkun,
+    getFromXinlan,
+    getFromYuanli,
+    getFromHuibq,
+    // getFromKuwo,
+    getFromLxMusic
+];
+
+// 获取链接
+async function getMediaSource(musicItem, quality) {
+    // 获取歌曲支持的最大音质
+    if (!musicItem.qualities[quality]) {
+        return false;
+    }
+    
+    // 依次尝试每个音源
+    for (let i = 0; i < sources.length; i++) {
+        const getSource = sources[i];
+        try {
+            const result = await getSource(musicItem, quality);
+            
+            // 成功获取后，将此音源移到列表末尾
+            if (i < sources.length - 1) {
+                // 从当前位置移除
+                sources.splice(i, 1);
+                // 添加到末尾
+                sources.push(getSource);
+                console.log(`Source succeeded and moved to end: ${getSource.name}`);
+            }
+            
+            return result;
+        } catch (err) {
+            // 记录错误，继续尝试下一个
+            console.log(`Source failed: ${err.message}`);
+        }
+    }
+    
+    // 所有音源都失败
+    return false;
 }
 
 
